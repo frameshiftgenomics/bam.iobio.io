@@ -53,22 +53,12 @@ var Bam = Class.extend({
          this.promises.shift()();
    },
 
-   _makeid: function() {
-      // make unique string id;
-       var text = "";
-       var possible = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789";
-
-       for( var i=0; i < 5; i++ )
-           text += possible.charAt(Math.floor(Math.random() * possible.length));
-
-       return text;
-   },
-
    _getBaiDepth: function(onData, onEnd) {
 
       if (this.sourceType == 'url') {
+        var indexUrl = this.baiUri || this.bamUri + ".bai";
         var xhr = new XMLHttpRequest();
-        xhr.open('GET', '/baireaddepth?baiUrl=http://s3.amazonaws.com/iobio/NA12878/NA12878.autsome.bam.bai');
+        xhr.open('GET', '/baireaddepth?baiUrl='+indexUrl);
         xhr.seenBytes = 0;
 
         xhr.onreadystatechange = function() {
@@ -89,17 +79,14 @@ var Bam = Class.extend({
       }
    },
 
-   _getBamstats: function(regions, callback) {
+   _getBamstats: function(regions, onData, onEnd) {
       var paramU = '500';
       var paramK = '1';
-      // var regArr = regions.map(function(d) { return d.name+ ":"+ d.start + '-' + d.end;});
       var paramR = JSON.stringify(regions.map(function(d) { return {start:d.start,end:d.end,chr:d.name};}));
-      // var paramR = "[{\"start\":52199057,\"end\":52209057,\"chr\":\"12\"},{\"start\":93764872,\"end\":93774872,\"chr\":\"12\"},{\"start\":84621486,\"end\":84631486,\"chr\":\"14\"},{\"start\":97991625,\"end\":98001625,\"chr\":\"14\"},{\"start\":37411915,\"end\":37421915,\"chr\":\"15\"},{\"start\":79751080,\"end\":79761080,\"chr\":\"16\"},{\"start\":32633996,\"end\":32643996,\"chr\":\"17\"},{\"start\":75081929,\"end\":75091929,\"chr\":\"17\"},{\"start\":48297946,\"end\":48307946,\"chr\":\"18\"},{\"start\":70765595,\"end\":70775595,\"chr\":\"18\"},{\"start\":25416362,\"end\":25426362,\"chr\":\"19\"},{\"start\":13035690,\"end\":13045690,\"chr\":\"20\"},{\"start\":28299041,\"end\":28309041,\"chr\":\"21\"},{\"start\":20076691,\"end\":20086691,\"chr\":\"22\"},{\"start\":32853560,\"end\":32863560,\"chr\":\"3\"},{\"start\":151690731,\"end\":151700731,\"chr\":\"3\"},{\"start\":161250306,\"end\":161260306,\"chr\":\"3\"},{\"start\":125187149,\"end\":125197149,\"chr\":\"5\"},{\"start\":125329805,\"end\":125339805,\"chr\":\"5\"},{\"start\":70167100,\"end\":70177100,\"chr\":\"9\"}]";
 
       if ( this.sourceType == "url") {
-        var url = "http://s3.amazonaws.com/iobio/NA12878/NA12878.autsome.bam";
 
-        var params = 'b=' + url +
+        var params = 'b=' + this.bamUri +
           '&u=' + paramU +
           '&k=' + paramK +
           '&r=' + paramR;
@@ -111,14 +98,13 @@ var Bam = Class.extend({
         xhr.onreadystatechange = function() {
           if(xhr.readyState > 2) {
             var newData = xhr.responseText.substr(xhr.seenBytes);
-            callback(newData)
+            onData(newData)
 
             xhr.seenBytes = xhr.responseText.length;
           }
         };
-
         xhr.onloadend = function() {
-          console.log('done');
+          onEnd();
         }
 
         xhr.send();
@@ -126,7 +112,7 @@ var Bam = Class.extend({
         var xhr = new XMLHttpRequest();
         var toSend = this.header.toStr;
         var ended = 0;
-        // var regions = [{start: 52199057, end: 52209057, name: "20"}]
+
         var params = '&u=' + paramU +
           '&k=' + paramK +
           '&r=' + paramR;
@@ -560,25 +546,44 @@ var Bam = Class.extend({
    getHeader: function(callback) {
       var me = this;
       if (me.header)
-         callback(me.header);
+        callback(me.header);
       else if (me.sourceType == 'file')
-         me.promise(function() { me.getHeader(callback); })
+        me.promise(function() { me.getHeader(callback); })
       else {
+        var xhr = new XMLHttpRequest();
+        xhr.open('GET', '/bamheader?url=' + this.bamUri);
+        // xhr.seenBytes = 0;
 
-          var rawHeader = ""
-          var cmd = new iobio.cmd(this.iobio.samtools,['view', '-H', '"' + this.bamUri + '"'], {ssl:this.ssl,})
-          cmd.on('error', function(error) {
-            console.log(error);
-          })
-          cmd.on('data', function(data, options) {
-             rawHeader += data;
-          });
-          cmd.on('end', function() {
-             me.setHeader(rawHeader);
-             callback( me.header);
-          });
+        // xhr.onreadystatechange = function() {
+        //   if(xhr.readyState > 2) {
+        //     var newData = xhr.responseText.substr(xhr.seenBytes);
+        //     onData(newData);
 
-          cmd.run();
+        //     xhr.seenBytes = xhr.responseText.length;
+        //   }
+        // };
+
+        xhr.onloadend = function() {
+          me.setHeader(xhr.responseText);
+          callback(me.header);
+        }
+
+        xhr.send();
+
+          // var rawHeader = ""
+          // var cmd = new iobio.cmd(this.iobio.samtools,['view', '-H', '"' + this.bamUri + '"'], {ssl:this.ssl,})
+          // cmd.on('error', function(error) {
+          //   console.log(error);
+          // })
+          // cmd.on('data', function(data, options) {
+          //    rawHeader += data;
+          // });
+          // cmd.on('end', function() {
+          //    me.setHeader(rawHeader);
+          //    callback( me.header);
+          // });
+
+          // cmd.run();
       }
 
       // need to make this work for URL bams
@@ -670,7 +675,7 @@ var Bam = Class.extend({
         // })
 
         // cmd.on('data', function(datas, options) {
-        me._getBamstats(r, function(datas) {
+        var onData = function(datas) {
            datas.split(';').forEach(function(data) {
              if (data == undefined || data == "\n") return;
              var success = true;
@@ -686,7 +691,13 @@ var Bam = Class.extend({
                callback(obj);
              }
           });
-        });
+        }
+        var onEnd = function() {
+           if (options.onEnd != undefined)
+              options.onEnd();
+        }
+
+        me._getBamstats(r, onData, onEnd);
 
         // cmd.on('end', function() {
         //    if (options.onEnd != undefined)

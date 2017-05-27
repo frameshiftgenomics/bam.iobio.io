@@ -1,7 +1,8 @@
 #!/bin/bash
 
-samtools="/Users/chase/Code/minion/bin/samtools"
-bamstatsalive="/Users/chase/Code/minion/bin/bamstatsalive"
+DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
+samtools=$DIR/samtools
+bamstatsalive=$DIR/bamstatsalive
 
 s=false
 

@@ -5,9 +5,6 @@ const app = express()
 
 app.use(express.static( path.join(__dirname, '../app/') ));
 
-// add middleware
-// app.use(cors())
-
 app.get('/', function (req, res) {
   res.sendFile(path.join(__dirname, '../index.html'));
 })
@@ -24,6 +21,12 @@ app.get('/bamstatsalive', function (req, res) {
 
   var bamstatsalive = spawn(path.join(__dirname,'/scripts/bamstatsalive.sh'), args);
   bamstatsalive.stdout.pipe(res);
+})
+
+app.get('/bamheader', function (req, res) {
+  var args = [ "view", "-H", req.query.url];
+  var bamheader = spawn(path.join(__dirname,'/scripts/samtools'), args);
+  bamheader.stdout.pipe(res);
 })
 
 
