@@ -1,0 +1,24 @@
+{
+  "name": "bam.iobio.io",
+  "version": "1.0.0",
+  "description": "web app for generating statistics for genomic BAM files",
+  "main": "server/server.js",
+  "dependencies": {
+    "express": "^4.15.3"
+  },
+  "devDependencies": {},
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1",
+    "start": "node server/server.js"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/chmille4/bam.iobio.io.git"
+  },
+  "author": "",
+  "license": "ISC",
+  "bugs": {
+    "url": "https://github.com/chmille4/bam.iobio.io/issues"
+  },
+  "homepage": "https://github.com/chmille4/bam.iobio.io#readme"
+}

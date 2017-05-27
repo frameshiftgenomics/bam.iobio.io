@@ -1,4 +1,3 @@
-// extending Thomas Down's original BAM js work
 
 var Bam = Class.extend({
 
@@ -63,6 +62,119 @@ var Bam = Class.extend({
            text += possible.charAt(Math.floor(Math.random() * possible.length));
 
        return text;
+   },
+
+   _getBaiDepth: function(onData, onEnd) {
+
+      if (this.sourceType == 'url') {
+        var xhr = new XMLHttpRequest();
+        xhr.open('GET', '/baireaddepth?baiUrl=http://s3.amazonaws.com/iobio/NA12878/NA12878.autsome.bam.bai');
+        xhr.seenBytes = 0;
+
+        xhr.onreadystatechange = function() {
+          if(xhr.readyState > 2) {
+            var newData = xhr.responseText.substr(xhr.seenBytes);
+            onData(newData);
+
+            xhr.seenBytes = xhr.responseText.length;
+          }
+        };
+
+        xhr.onloadend = function() {
+          // console.log('done');
+          onEnd();
+        }
+
+        xhr.send();
+      }
+   },
+
+   _getBamstats: function(regions, callback) {
+      var paramU = '500';
+      var paramK = '1';
+      // var regArr = regions.map(function(d) { return d.name+ ":"+ d.start + '-' + d.end;});
+      var paramR = JSON.stringify(regions.map(function(d) { return {start:d.start,end:d.end,chr:d.name};}));
+      // var paramR = "[{\"start\":52199057,\"end\":52209057,\"chr\":\"12\"},{\"start\":93764872,\"end\":93774872,\"chr\":\"12\"},{\"start\":84621486,\"end\":84631486,\"chr\":\"14\"},{\"start\":97991625,\"end\":98001625,\"chr\":\"14\"},{\"start\":37411915,\"end\":37421915,\"chr\":\"15\"},{\"start\":79751080,\"end\":79761080,\"chr\":\"16\"},{\"start\":32633996,\"end\":32643996,\"chr\":\"17\"},{\"start\":75081929,\"end\":75091929,\"chr\":\"17\"},{\"start\":48297946,\"end\":48307946,\"chr\":\"18\"},{\"start\":70765595,\"end\":70775595,\"chr\":\"18\"},{\"start\":25416362,\"end\":25426362,\"chr\":\"19\"},{\"start\":13035690,\"end\":13045690,\"chr\":\"20\"},{\"start\":28299041,\"end\":28309041,\"chr\":\"21\"},{\"start\":20076691,\"end\":20086691,\"chr\":\"22\"},{\"start\":32853560,\"end\":32863560,\"chr\":\"3\"},{\"start\":151690731,\"end\":151700731,\"chr\":\"3\"},{\"start\":161250306,\"end\":161260306,\"chr\":\"3\"},{\"start\":125187149,\"end\":125197149,\"chr\":\"5\"},{\"start\":125329805,\"end\":125339805,\"chr\":\"5\"},{\"start\":70167100,\"end\":70177100,\"chr\":\"9\"}]";
+
+      if ( this.sourceType == "url") {
+        var url = "http://s3.amazonaws.com/iobio/NA12878/NA12878.autsome.bam";
+
+        var params = 'b=' + url +
+          '&u=' + paramU +
+          '&k=' + paramK +
+          '&r=' + paramR;
+
+        var xhr = new XMLHttpRequest();
+        xhr.open('GET', '/bamstatsalive?' + params);
+        xhr.seenBytes = 0;
+
+        xhr.onreadystatechange = function() {
+          if(xhr.readyState > 2) {
+            var newData = xhr.responseText.substr(xhr.seenBytes);
+            callback(newData)
+
+            xhr.seenBytes = xhr.responseText.length;
+          }
+        };
+
+        xhr.onloadend = function() {
+          console.log('done');
+        }
+
+        xhr.send();
+      } else {
+        var xhr = new XMLHttpRequest();
+        var toSend = this.header.toStr;
+        var ended = 0;
+        // var regions = [{start: 52199057, end: 52209057, name: "20"}]
+        var params = '&u=' + paramU +
+          '&k=' + paramK +
+          '&r=' + paramR;
+        for (var i=0; i < regions.length; i++) {
+          var region = regions[i];
+           this.convert('sam', region.name, region.start, region.end, function(data,e) {
+              toSend += data;
+              ended += 1;
+              if ( regions.length == ended) {
+                xhr.open('POST', '/clientbam?'+params, true);
+                xhr.seenBytes = 0;
+                xhr.setRequestHeader("Content-Type", "text/plain");
+
+                xhr.onreadystatechange = function() {
+                  if(xhr.readyState > 2) {
+                    var newData = xhr.responseText.substr(xhr.seenBytes);
+                    callback(newData);
+
+                    xhr.seenBytes = xhr.responseText.length;
+                  }
+                };
+
+                xhr.onloadend = function() {
+                  console.log('done');
+                }
+
+                xhr.send(toSend);
+              }
+           }, {noHeader:true});
+        }
+
+          // var cmd = new iobio.cmd(
+          //   this.iobio.samtools,
+          //   ['view', '-S', '-b', writeFile],
+          //   {
+          //     ssl:this.ssl,
+          //     'urlparams': {'encoding':'binary'}
+          // })
+      }
+
+      // cmd = cmd.pipe(
+      //         this.iobio.bamstatsAlive,
+      //         ['-u', '500', '-k', '1', '-r', regStr],
+      //         { ssl:this.ssl}
+      //         // { ssl:this.ssl, urlparams: {cache:'stats.json', partialCache:true}}
+      //       );
+      // }
+
    },
 
    _getBamCmd: function(regions) {
@@ -335,9 +447,11 @@ var Bam = Class.extend({
       else if (me.sourceType == 'url') {
           var currentSequence;
           var indexUrl = this.baiUri || this.bamUri + ".bai";
-          var cmd = new iobio.cmd(this.iobio.bamReadDepther, [ '-i', '"' + indexUrl + '"'], {ssl:this.ssl,})
-          cmd.on('error', function(e){ console.log(e); });
-          cmd.on('data', function(data, options) {
+          // var cmd = new iobio.cmd(this.iobio.bamReadDepther, [ '-i', '"' + indexUrl + '"'], {ssl:this.ssl,})
+          // cmd.on('error', function(e){ console.log(e); });
+
+          //cmd.on('data', function(data, options) {
+          me._getBaiDepth(function(data) {
              data = data.split("\n");
              for (var i=0; i < data.length; i++)  {
                 if ( data[i][0] == '#' ) {
@@ -361,12 +475,15 @@ var Bam = Class.extend({
                    }
                 }
              }
+          }, function() {
+              isdone = true;
+              cb();
           });
-          cmd.on('end', function() {
-            isdone = true;
-            cb();
-          });
-          cmd.run();
+          // cmd.on('end', function() {
+          //   isdone = true;
+          //   cb();
+          // });
+          // cmd.run();
 
       } else if (me.sourceType == 'file') {
           me.baiBlob.fetch(function(header){
@@ -540,19 +657,20 @@ var Bam = Class.extend({
             }
 
          var r = bedRegions || regions;
-         var cmd = me._getBamCmd( r )
-         var buffer = "";
+        //  var cmd = me._getBamCmd( r )
+        var buffer = "";
 
-        cmd.on('error', function(err) {
-          console.log(err);
-        })
+        // cmd.on('error', function(err) {
+        //   console.log(err);
+        // })
 
 
-        cmd.on('queue', function(q) {
-          console.log('queue = ' + q);
-        })
+        // cmd.on('queue', function(q) {
+        //   console.log('queue = ' + q);
+        // })
 
-        cmd.on('data', function(datas, options) {
+        // cmd.on('data', function(datas, options) {
+        me._getBamstats(r, function(datas) {
            datas.split(';').forEach(function(data) {
              if (data == undefined || data == "\n") return;
              var success = true;
@@ -570,15 +688,15 @@ var Bam = Class.extend({
           });
         });
 
-        cmd.on('end', function() {
-           if (options.onEnd != undefined)
-              options.onEnd();
-        });
+        // cmd.on('end', function() {
+        //    if (options.onEnd != undefined)
+        //       options.onEnd();
+        // });
 
-        cmd.on('exit', function(code) {
-        })
+        // cmd.on('exit', function(code) {
+        // })
 
-        cmd.run();
+        // cmd.run();
 
 
       }
