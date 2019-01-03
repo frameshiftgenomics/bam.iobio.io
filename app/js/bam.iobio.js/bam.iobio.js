@@ -27,7 +27,7 @@ var Bam = Class.extend({
       this.iobio = {}
 
       this.iobio.samtools       = "nv-prod.iobio.io/samtools/";
-      this.iobio.od_samtools    = "nv-dev-new.iobio.io/od_samtools/";
+      this.iobio.od_samtools    = "nv-prod.iobio.io/od_samtools/";
       this.iobio.bamReadDepther = "nv-prod.iobio.io/bamreaddepther/";
       this.iobio.bamstatsAlive  = "nv-prod.iobio.io/bamstatsalive/";
 
@@ -411,16 +411,26 @@ var Bam = Class.extend({
          if (me.header) {
             var keys = Object.keys(readDepth);
             for (var i=0; i < keys.length; i++) {
-              var name = me.header.sq[parseInt(keys[i])].name;
-              // console.log('cb done = ' + done);
-              //console.log('before last callback');
-              if ( me.readDepth[ name ] == undefined){
-                //console.log('last callback');
-                me.readDepth[ name ] = readDepth[keys[i]];
-                // check if request is done and this is the last iteration
-                done = (isdone && ( (i+1)==keys.length ) )
-                callback( name, readDepth[keys[i]], done );
+              var recIdx = parseInt(keys[i]);
+              if (recIdx < me.header.sq.length && me.header.sq[recIdx]) {
+                var name = me.header.sq[recIdx].name;
+                // console.log('cb done = ' + done);
+                //console.log('before last callback');
+                if ( me.readDepth[ name ] == undefined){
+                  //console.log('last callback');
+                  me.readDepth[ name ] = readDepth[keys[i]];
+                }
+              } else {
+                console.log("bypassing read depth for header.sq at position " + recIdx);
               }
+              // check if request is done and this is the last iteration
+              done = (isdone && ( (i+1)==keys.length ) )
+              if (i %100 == 0) {
+                console.log("i = " + i);
+                console.log("isdone = " + isdone);
+                console.log("keys.length = " + keys.length)
+              }
+              callback( name, readDepth[keys[i]], done );
             }
          }
       }
@@ -433,16 +443,13 @@ var Bam = Class.extend({
       else if (me.sourceType == 'url') {
           var currentSequence;
           var indexUrl = this.baiUri || this.bamUri + ".bai";
-          // var cmd = new iobio.cmd(this.iobio.bamReadDepther, [ '-i', '"' + indexUrl + '"'], {ssl:this.ssl,})
-          // cmd.on('error', function(e){ console.log(e); });
 
-          //cmd.on('data', function(data, options) {
           me._getBaiDepth(function(data) {
              data = data.split("\n");
              for (var i=0; i < data.length; i++)  {
                 if ( data[i][0] == '#' ) {
                    var numRefs = Object.keys(readDepth).length;
-                   if ( numRefs > 0 && ((numRefs+3) % 3 ==0) ) { cb() };
+                   // if ( numRefs > 0 && ((numRefs+3) % 3 ==0) ) { cb() };
                    var fields = data[i].substr(1).split("\t");
                    currentSequence = fields[0]
                    readDepth[currentSequence] = [];
@@ -465,12 +472,6 @@ var Bam = Class.extend({
               isdone = true;
               cb();
           });
-          // cmd.on('end', function() {
-          //   isdone = true;
-          //   cb();
-          // });
-          // cmd.run();
-
       } else if (me.sourceType == 'file') {
           me.baiBlob.fetch(function(header){
              if (!header) {
@@ -541,6 +542,17 @@ var Bam = Class.extend({
           });
       }
 
+   },
+
+
+   getIndexUrl: function(alignmentUrl) {
+    var supported_filetypes = {
+      'bam' : 'bai',
+      'cram' : 'crai'
+    }
+
+    var filetype = alignmentUrl.split('.').slice(-1);
+    return alignmentUrl + "." + supported_filetypes[filetype];
    },
 
    getHeader: function(callback) {
