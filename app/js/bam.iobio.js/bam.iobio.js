@@ -129,14 +129,14 @@ var Bam = Class.extend({
                 xhr.onreadystatechange = function() {
                   if(xhr.readyState > 2) {
                     var newData = xhr.responseText.substr(xhr.seenBytes);
-                    callback(newData);
+                    onData(newData);
 
                     xhr.seenBytes = xhr.responseText.length;
                   }
                 };
 
                 xhr.onloadend = function() {
-                  console.log('done');
+                  onEnd();
                 }
 
                 xhr.send(toSend);
